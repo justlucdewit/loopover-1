@@ -172,10 +172,47 @@ export class State {
       this.game.activeTile = this.game.board.grid[Math.ceil((this.rows - 1) / 2)][Math.ceil((this.cols - 1) / 2)]
     }
 
+    this.loadAllSolves()
+  }
+
+  async loadAllSolves() {
     if (this.db) {
       this.allSolves = (await this.db.getAllFromIndex("solves", "event", this.eventName))
         .map(value => Object.freeze(deserializeSolve(value).solve)) || []
     }
+  }
+
+  async syncSolves() {
+    if (!this.user || !state.db) return
+
+    const response = await fetch(process.env.VUE_APP_API + "/sync", {
+      method: "post",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${await this.user.getIdToken()}`
+      },
+      body: JSON.stringify(await state.db.getAllKeys("solves"))
+    })
+
+    const { solves, missing } = await response.json()
+    const solvesStore = state.db.transaction("solves", "readwrite").objectStore("solves")
+
+    if (missing.length > 0) {
+      await fetch(process.env.VUE_APP_API + "/sync", {
+        method: "put",
+        headers: {
+          "content-type": "application/json",
+          "authorization": `Bearer ${await this.user.getIdToken()}`
+        },
+        body: JSON.stringify(await Promise.all(missing.map((id: string) => solvesStore.get(id))))
+      })
+    }
+
+    for (const solve of solves) {
+      solvesStore.add(solve)
+    }
+
+    state.loadAllSolves()
   }
 
   done() {
@@ -281,9 +318,20 @@ export class State {
       }
     }
 
+    const serializedSolve = serializeSolve(solve, this.eventName, this.session)
+
     if (this.db) {
-      this.db.put("solves", serializeSolve(solve, this.eventName, this.session))
+      this.db.put("solves", serializedSolve)
     }
+
+    fetch(process.env.VUE_APP_API + "/sync", {
+      method: "put",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${await this.user!.getIdToken()}`
+      },
+      body: JSON.stringify([serializedSolve])
+    })
   }
 
   newRecord: { n: number, diff: number } | null = null
@@ -436,6 +484,7 @@ if (process.env.VUE_APP_FIREBASE_API_KEY) {
   import("./firebase").then(({ firebase }) => {
     firebase.auth().onAuthStateChanged(async user => {
       state.user = user
+      state.syncSolves()
     })
   })
 }
