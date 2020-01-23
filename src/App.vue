@@ -88,6 +88,11 @@
         <a target="_blank" href="https://discord.gg/DXASrTp">discord.gg/DXASrTp</a> |
         <a target="_blank" href="https://github.com/janispritzkau/loopover">Source code</a>
       </p>
+      <div class="auth">
+        <span v-if="$state.user">Signed in as {{ $state.user.displayName }}</span>
+        <a v-if="$state.user" @click="signOut">Sign out</a>
+        <a v-else @click="signIn">Sign in</a>
+      </div>
     </footer>
 
     <div v-if="refresh" class="update-notification">
@@ -166,6 +171,16 @@ export default class App extends Vue {
     return record.n == 1
       ? `New personal best (-${record.diff / 1000}s)`
       : `New best average of ${record.n} (-${Math.round(record.diff) / 1000}s)`
+  }
+
+  async signIn() {
+    const { firebase } = await import("./firebase")
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+  }
+
+  async signOut() {
+    const { firebase } = await import("./firebase")
+    firebase.auth().signOut()
   }
 
   handleMainButtonClick() {
@@ -383,5 +398,14 @@ footer {
   margin: 0 auto;
   text-align: center;
   padding: 16px 16px;
+}
+
+.auth {
+  margin: 32px auto 16px;
+  font-size: 14px;
+}
+
+.auth span {
+  margin-right: 8px;
 }
 </style>

@@ -67,6 +67,8 @@ export class State {
 
   game!: Game
 
+  user: firebase.User | null = null
+
   get eventName() {
     return `${state.cols}x${state.rows}`
       + ["", "-fmc", "-bld"][state.event]
@@ -429,5 +431,13 @@ openDB("loopover", 2, {
   state.db = db
   state.reset()
 })
+
+if (process.env.VUE_APP_FIREBASE_API_KEY) {
+  import("./firebase").then(({ firebase }) => {
+    firebase.auth().onAuthStateChanged(async user => {
+      state.user = user
+    })
+  })
+}
 
 export default state
