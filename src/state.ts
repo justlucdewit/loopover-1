@@ -197,6 +197,10 @@ export class State {
     const { solves, missing } = await response.json()
     const solvesStore = state.db.transaction("solves", "readwrite").objectStore("solves")
 
+    for (const solve of solves) {
+      solvesStore.add(solve)
+    }
+
     if (missing.length > 0) {
       await fetch(process.env.VUE_APP_API + "/sync", {
         method: "put",
@@ -206,10 +210,6 @@ export class State {
         },
         body: JSON.stringify(await Promise.all(missing.map((id: string) => solvesStore.get(id))))
       })
-    }
-
-    for (const solve of solves) {
-      solvesStore.add(solve)
     }
 
     state.loadAllSolves()
