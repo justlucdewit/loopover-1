@@ -86,7 +86,7 @@ export default class Stats extends Vue {
 .btn-group {
   background: var(--contrast-3);
   border-radius: 14px;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .btn {

@@ -90,9 +90,15 @@
         <a target="_blank" href="https://github.com/janispritzkau/loopover">Source code</a>
       </p>
       <div class="auth">
-        <span v-if="$state.user">Signed in as {{ $state.user.displayName }}</span>
-        <a v-if="$state.user" @click="signOut">Sign out</a>
-        <a v-else @click="signIn">Sign in</a>
+        <p v-if="$state.user">Signed in as {{ $state.user.displayName }}</p>
+        <template v-if="$state.user">
+          <a @click="deleteAccount">Delete account</a>
+          <a @click="signOut">Sign out</a>
+        </template>
+        <template v-else>
+          <a @click="signIn('google')">Sign in with Google</a>
+          <a @click="signIn('github')">Sign in with GitHub</a>
+        </template>
       </div>
     </footer>
 
@@ -176,14 +182,28 @@ export default class App extends Vue {
         : Math.round(record.diff) / 1000 + "s"})`
   }
 
-  async signIn() {
+  async signIn(provider: "google" | "github") {
     const { firebase } = await import("./firebase")
-    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    firebase.auth().signInWithPopup(provider == "google"
+      ? new firebase.auth.GoogleAuthProvider()
+      : new firebase.auth.GithubAuthProvider()).catch(error => {
+        console.error(error)
+      })
   }
 
   async signOut() {
     const { firebase } = await import("./firebase")
-    firebase.auth().signOut()
+    await firebase.auth().signOut()
+  }
+
+  async deleteAccount() {
+    const { firebase } = await import("./firebase")
+    await this.$state.user!.reauthenticateWithPopup(
+      this.$state.user!.providerData[0]?.providerId == "google.com"
+        ? new firebase.auth.GoogleAuthProvider()
+        : new firebase.auth.GithubAuthProvider()
+    )
+    await this.$state.user!.delete()
   }
 
   handleMainButtonClick() {
@@ -252,7 +272,7 @@ export default class App extends Vue {
         case "u": this.$state.showUndoRedo && this.$state.undo(); break
         case "r": this.$state.showUndoRedo && this.$state.redo(); break
         case "Enter": this.handleMainButtonClick(); break
-        default: return;
+        default: return
       }
 
       game.canvas.focus()
@@ -408,7 +428,11 @@ footer {
   font-size: 14px;
 }
 
-.auth span {
-  margin-right: 8px;
+.auth p {
+  margin: 16px 0;
+}
+
+.auth a {
+  margin: 0 6px;
 }
 </style>
