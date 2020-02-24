@@ -34,11 +34,18 @@
       </tr>
     </table>
     <LineChart
-      v-if="showChart"
-      ref="chart"
-      :width="300"
-      :height="200"
-      @loaded="renderChart"
+      ref="timeChart"
+      :width="500"
+      :height="300"
+      @loaded="renderTimeChart"
+      :styles="{ marginTop: '32px' }"
+    />
+    <LineChart
+      ref="averageChart"
+      v-if="showAverageChart"
+      :width="500"
+      :height="300"
+      @loaded="renderAverageChart"
       :styles="{ marginTop: '32px' }"
     />
   </section>
@@ -48,6 +55,21 @@
 import { Vue, Component, Watch } from "vue-property-decorator"
 import { EventType } from '../state'
 import { Line } from "vue-chartjs"
+import { Chart } from "chart.js"
+import { average } from '../state/averages'
+
+const gridLines = (dark?: boolean) => ({
+  ...dark && {
+    color: "rgba(255, 255, 255, 0.08)",
+    zeroLineColor: "rgba(255, 255, 255, 0.14)"
+  }
+})
+
+const fontColor = (dark?: boolean) => ({
+  ...dark && {
+    fontColor: "rgba(255, 255, 255, 0.8)"
+  }
+})
 
 @Component({
   components: {
@@ -61,9 +83,9 @@ import { Line } from "vue-chartjs"
 })
 export default class Statistics extends Vue {
   showMoves = this.$state.event == EventType.Fmc
+  showAverageChart = false
 
-  $refs!: { chart: Line }
-  showChart = false
+  $refs!: { timeChart: Line, averageChart: Line }
 
   @Watch("$state.event")
   handleEventTypeChange() {
@@ -86,14 +108,73 @@ export default class Statistics extends Vue {
   @Watch("$state.darkMode")
   @Watch("$state.allSolves")
   @Watch("showMoves")
-  async renderChart() {
+  renderTimeChart() {
+    if (!this.$refs.timeChart) return
+
+    const dark = this.$state.darkMode || undefined
+
+    const scores = this.$state.allSolves.slice(-500).map((solve, i) => ({ x: i, y: this.showMoves ? solve.moves.length : solve.time }))
+
+    const averages = scores.length > 1 ? scores.map((score, i) => {
+      return [1, 5, 12].map(n => {
+        const y = i < n - 1 ? -1 : average(new Uint32Array(scores.slice(i - n + 1, i + 1).map(x => x.y)))
+        return {
+          x: score.x,
+          y: y == -1 ? undefined : y
+        }
+      })
+    }) : []
+
+    this.$refs.timeChart.renderChart({
+      datasets: [2, 1, 0].map(i => ({
+        label: i == 0 ? "Single" : `Ao${[5, 12][i - 1]}`,
+        data: averages.map(x => x[i]),
+        borderColor: ["rgba(120, 125, 130, 0.4)", "rgb(215, 80, 80)", "rgb(80, 180, 80)"][i],
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        lineTension: 0,
+        borderWidth: 1 + i / 2,
+        fill: false,
+      }))
+    }, {
+      tooltips: { enabled: false },
+      animation: { duration: 500 },
+      legend: { labels: fontColor(dark) },
+      scales: {
+        xAxes: [{
+          type: "linear",
+          ticks: {
+            callback: value => value == scores.length - 1 ? "" : value,
+            min: scores[0]?.x,
+            max: scores[scores.length - 1]?.x,
+            ...fontColor(dark)
+          },
+          gridLines: gridLines(dark)
+        }],
+        yAxes: [{
+          bounds: "data",
+          ticks: {
+            maxTicksLimit: 8,
+            suggestedMax: 1000,
+            callback: value => Math.round(value / 100) / 10,
+            ...fontColor(dark)
+          },
+          gridLines: gridLines(dark)
+        }]
+      }
+    })
+  }
+
+  @Watch("$state.darkMode")
+  @Watch("$state.allSolves")
+  async renderAverageChart() {
     if (!process.env.VUE_APP_API) return
 
     const response = await fetch(`${process.env.VUE_APP_API}/statistics/${this.$state.eventName}/${this.showMoves ? "moves" : "time"}`)
     const { labels, data } = await response.json()
 
-    this.showChart = labels.length > 1
-    if (!this.$refs.chart || !this.showChart) return
+    this.showAverageChart = labels.length > 1
+    if (!this.$refs.averageChart || !this.showAverageChart) return
 
     let scores = this.$state.allSolves
       .filter(s => !s.dnf)
@@ -117,7 +198,7 @@ export default class Statistics extends Vue {
 
     const dark = this.$state.darkMode || undefined
 
-    this.$refs.chart.renderChart({
+    this.$refs.averageChart.renderChart({
       labels,
       datasets: [
         {
@@ -131,24 +212,19 @@ export default class Statistics extends Vue {
           label: "Average user",
           data: data,
           backgroundColor: "rgb(50, 140, 210, 0.22)",
-          borderColor: "rgb(0, 0, 0, 0)",
+          borderColor: "transparent",
           fill: true
         }
       ]
     }, {
       tooltips: { enabled: false },
       animation: { duration: 0 },
-      legend: { labels: { fontColor: dark && "rgba(255, 255, 255, 0.9)" } },
+      legend: { labels: fontColor(dark) },
       scales: {
         ...dark && {
           xAxes: [{
-            ticks: {
-              fontColor: "rgba(255, 255, 255, 0.7)"
-            },
-            gridLines: {
-              color: "rgba(255, 255, 255, 0.06)",
-              zeroLineColor: "rgba(255, 255, 255, 0.1)"
-            },
+            ticks: fontColor(dark),
+            gridLines: gridLines(dark)
           }]
         },
         yAxes: [{
