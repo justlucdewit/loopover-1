@@ -46,7 +46,9 @@ export class Game {
 
   constructor(public canvas: HTMLCanvasElement, public cols: number, public rows: number) {
     this.canvas.tabIndex = 0
-    this.ctx = canvas.getContext("2d")!
+    this.ctx = canvas.getContext("2d", {
+      desynchronized: true
+    })!
     this.addEventListeners()
     this.setBoardSize(cols, rows)
 
@@ -211,7 +213,7 @@ export class Game {
   private getPointers(axis: Axis, index: number) {
     const pointers: Pointer[] = []
     for (const pointer of this.pointers.values()) {
-      if ((axis == Axis.Row ? (pointer.row % this.rows + this.rows) % this.rows : pointer.col) == index) {
+      if ((axis == Axis.Row ? (pointer.row % this.rows + this.rows) % this.rows : (pointer.col % this.cols + this.cols) % this.cols) == index) {
         pointers.push(pointer)
       }
     }
@@ -238,7 +240,7 @@ export class Game {
       for (let i = Math.abs(moveX); i--;) {
         this.animatedMove({ axis: Axis.Row, index: rowIndex, n: Math.sign(moveX) }, true)
       }
-      pointersX.forEach(pointer => (pointer.moveX = 0, pointer.moveY = 0))
+      pointersX.forEach(p => (p.moveX = 0, pointer != p && (p.moveY = 0)))
     }
 
     pointer.col = col
@@ -251,7 +253,7 @@ export class Game {
       for (let i = Math.abs(moveY); i--;) {
         this.animatedMove({ axis: Axis.Col, index: colIndex, n: Math.sign(moveY) }, true)
       }
-      pointersY.forEach(pointer => (pointer.moveX = 0, pointer.moveY = 0))
+      pointersY.forEach(p => (p.moveY = 0, pointer != p && (p.moveX = 0)))
     }
 
     pointer.row = row
