@@ -211,7 +211,7 @@ export class Game {
   private getPointers(axis: Axis, index: number) {
     const pointers: Pointer[] = []
     for (const pointer of this.pointers.values()) {
-      if ((axis == Axis.Row ? pointer.row : pointer.col) == index) {
+      if ((axis == Axis.Row ? (pointer.row % this.rows + this.rows) % this.rows : pointer.col) == index) {
         pointers.push(pointer)
       }
     }
