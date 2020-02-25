@@ -14,6 +14,8 @@ interface Pointer {
   y: number
   col: number
   row: number
+  moveX: number
+  moveY: number
 }
 
 export class Game {
@@ -206,6 +208,16 @@ export class Game {
     }
   }
 
+  private getPointers(axis: Axis, index: number) {
+    const pointers: Pointer[] = []
+    for (const pointer of this.pointers.values()) {
+      if ((axis == Axis.Row ? pointer.row : pointer.col) == index) {
+        pointers.push(pointer)
+      }
+    }
+    return pointers
+  }
+
   private onTouchMove = (pointer: Pointer) => {
     let col = Math.floor(pointer.x * devicePixelRatio / this.width * this.cols)
     let row = Math.floor(pointer.y * devicePixelRatio / this.height * this.rows)
@@ -215,18 +227,34 @@ export class Game {
       row = Math.min(Math.max(row, 0), this.rows - 1)
     }
 
-    const moveX = row - pointer.row
-    const moveY = col - pointer.col
+    pointer.moveX += col - pointer.col
+    pointer.moveY += row - pointer.row
 
-    for (let i = Math.abs(moveX); i--;) {
-      this.animatedMove({ axis: Axis.Col, index: (pointer.col % this.cols + this.cols) % this.cols, n: Math.sign(moveX) }, true)
-    }
-    pointer.row = row
+    const rowIndex = (pointer.row % this.rows + this.rows) % this.rows
+    const pointersX = this.getPointers(Axis.Row, rowIndex)
+    const moveX = Math.trunc(pointersX.reduce((a, b) => a + b.moveX, 0) / pointersX.length)
 
-    for (let i = Math.abs(moveY); i--;) {
-      this.animatedMove({ axis: Axis.Row, index: (pointer.row % this.rows + this.rows) % this.rows, n: Math.sign(moveY) }, true)
+    if (moveX) {
+      for (let i = Math.abs(moveX); i--;) {
+        this.animatedMove({ axis: Axis.Row, index: rowIndex, n: Math.sign(moveX) }, true)
+      }
+      pointersX.forEach(pointer => (pointer.moveX = 0, pointer.moveY = 0))
     }
+
     pointer.col = col
+
+    const colIndex = (pointer.col % this.cols + this.cols) % this.cols
+    const pointersY = this.getPointers(Axis.Col, colIndex)
+    const moveY = Math.trunc(pointersY.reduce((a, b) => a + b.moveY, 0) / pointersY.length)
+
+    if (moveY) {
+      for (let i = Math.abs(moveY); i--;) {
+        this.animatedMove({ axis: Axis.Col, index: colIndex, n: Math.sign(moveY) }, true)
+      }
+      pointersY.forEach(pointer => (pointer.moveX = 0, pointer.moveY = 0))
+    }
+
+    pointer.row = row
   }
 
   private multiplierString = ""
@@ -290,7 +318,7 @@ export class Game {
 
       this.onTouchStart(-1, {
         x: event.clientX - rect.left, y: event.clientY - rect.top,
-        col: 0, row: 0
+        col: 0, row: 0, moveX: 0, moveY: 0
       })
     })
 
@@ -314,7 +342,7 @@ export class Game {
       for (let touch of event.changedTouches) {
         this.onTouchStart(touch.identifier, {
           x: touch.clientX - rect.left, y: touch.clientY - rect.top,
-          col: 0, row: 0
+          col: 0, row: 0, moveX: 0, moveY: 0
         })
       }
     }, { passive: false })
